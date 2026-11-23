@@ -6,10 +6,11 @@ import { devAuth, devEmail, devId } from "./devauth";
 export type User = { id: string; email: string; plan: PlanId; balance: number; hasBilling: boolean };
 
 export async function currentUser(): Promise<User | null> {
-  let u: { id: string; email?: string } | null;
+  let u: { id: string; email?: string; email_confirmed_at?: string } | null;
   if (devAuth) { const e = await devEmail(); u = e ? { id: devId(e), email: e } : null; }
   else u = (await (await supabaseServer()).auth.getUser()).data.user;
   if (!u?.email) return null;
+  if (!devAuth && process.env.NODE_ENV === "production" && !("email_confirmed_at" in u && u.email_confirmed_at)) return null;
   const [p] = await query<{ plan: PlanId; stripe_customer_id: string | null }>(
     `with p as (
        insert into profiles (id, email) values ($1::uuid, $2) on conflict (id) do update set email = excluded.email

@@ -2,7 +2,7 @@ import { Pool, type PoolClient, type QueryResultRow } from "pg";
 import type { PlanId } from "./plans";
 import { log } from "./log";
 
-export type Ad = { id: string; hook: string; script: string; caption: string; hashtags: string[]; avatar: string; status: "pending" | "processing" | "done" | "failed"; videoJobId?: string; videoUrl?: string; error?: string };
+export type Ad = { id: string; hook: string; script: string; caption: string; hashtags: string[]; avatar: string; status: "pending" | "processing" | "done" | "failed"; videoJobId?: string; videoUrl?: string; videoKey?: string; error?: string };
 export type Product = { title: string; description: string; price?: string; image?: string; images: string[] };
 export type Project = { id: string; userId: string; url: string; product: Product; ads: Ad[]; createdAt: string };
 export type Profile = { id: string; email: string; plan: PlanId; stripeCustomerId: string | null };
@@ -38,10 +38,10 @@ export async function tx<T>(fn: (c: PoolClient) => Promise<T>): Promise<T> {
   }
 }
 
-type AdRow = { id: string; hook: string; script: string; caption: string; hashtags: string[]; avatar: string; status: Ad["status"]; video_job_id: string | null; video_url: string | null; error: string | null };
+type AdRow = { id: string; hook: string; script: string; caption: string; hashtags: string[]; avatar: string; status: Ad["status"]; video_job_id: string | null; video_url: string | null; video_key: string | null; error: string | null };
 type ProjectRow = { id: string; user_id: string; url: string; product: Product; created_at: Date };
 
-export const adFromRow = (r: AdRow): Ad => ({ id: r.id, hook: r.hook, script: r.script, caption: r.caption, hashtags: r.hashtags, avatar: r.avatar, status: r.status, videoJobId: r.video_job_id ?? undefined, videoUrl: r.video_url ?? undefined, error: r.error ?? undefined });
+export const adFromRow = (r: AdRow): Ad => ({ id: r.id, hook: r.hook, script: r.script, caption: r.caption, hashtags: r.hashtags, avatar: r.avatar, status: r.status, videoJobId: r.video_job_id ?? undefined, videoUrl: r.video_url ?? undefined, videoKey: r.video_key ?? undefined, error: r.error ?? undefined });
 
 async function withAds(rows: ProjectRow[]): Promise<Project[]> {
   if (!rows.length) return [];

@@ -57,7 +57,7 @@ Why requeue-poll instead of a long-held job: workers never hold a slot while wai
 ## 7. Storage and delivery
 - Key: `videos/{userId}/{adId}.mp4`, immutable cache headers, public base URL (CDN-fronted bucket).
 - Without S3 config the provider URL is used directly (may expire, no captions).
-- [Planned] signed URLs for private content, bucket lifecycle rules, thumbnail extraction, multi-bitrate/HLS, watermark on free tier, download counting.
+- Implemented: private bucket by default; only the object key is stored (`ads.video_key`) and a 1-hour signed URL is minted on each read (`S3_PRIVATE=0` switches to public CDN URLs). [Planned] bucket lifecycle rules, thumbnail extraction, multi-bitrate/HLS, watermark on free tier, download counting.
 
 ## 8. Quality and safety
 - [Planned] automated checks: duration/resolution, audio present, black-frame detection, profanity and restricted-claim scan on script before spending provider credit.

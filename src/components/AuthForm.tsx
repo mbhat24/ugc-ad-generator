@@ -28,6 +28,7 @@ export default function AuthForm({ mode }: { mode: "login" | "signup" }) {
         <input name="password" type="password" required minLength={8} placeholder="Password (8+ characters)" className="w-full rounded-lg border border-white/15 bg-white/5 px-4 py-3 outline-none focus:border-fuchsia-400" />
         {error && <p className="text-sm text-red-400">{error}</p>}
         {notice && <p className="text-sm text-emerald-300">{notice}</p>}
+        {mode === "signup" && <p className="text-xs text-white/50">By signing up you agree to the <Link className="text-fuchsia-300" href="/terms">Terms</Link>, <Link className="text-fuchsia-300" href="/privacy">Privacy Policy</Link> and <Link className="text-fuchsia-300" href="/acceptable-use">Acceptable Use Policy</Link>.</p>}
         <button disabled={busy} className="w-full rounded-lg bg-fuchsia-500 py-3 font-semibold hover:bg-fuchsia-400 disabled:opacity-50">{busy ? "..." : mode === "login" ? "Log in" : "Sign up free"}</button>
       </form>
       <p className="mt-6 text-sm text-white/60">

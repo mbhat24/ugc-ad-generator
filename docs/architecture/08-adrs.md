@@ -52,7 +52,7 @@ Consequences: predictable revenue and simple UX; no rollover logic yet; plan cha
 
 ## ADR-010 Object storage with public CDN URLs
 Decision: public immutable URLs for finished videos.
-Consequences: simple playback and ad-platform upload; URLs are unguessable but not authenticated. Planned: signed URLs for sensitive tiers.
+Consequences (revised): superseded by private storage with short-lived signed URLs by default; public mode remains an opt-out (`S3_PRIVATE=0`).
 
 ## ADR-011 Start monolithic, split by measured need
 Decision: no microservices until a component's scaling or ownership demands it. Likely first split: media pipeline service, then billing service.

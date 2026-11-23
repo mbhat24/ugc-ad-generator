@@ -4,7 +4,7 @@ import { join } from "path";
 import { query, type Ad, type Product } from "./db";
 import { log } from "./log";
 import { burnCaptions } from "./captions";
-import { storageEnabled, uploadVideo } from "./storage";
+import { privateMedia, storageEnabled, uploadVideo } from "./storage";
 import { provider, RetryLater } from "./video";
 import { enqueueAd } from "./queue";
 
@@ -20,7 +20,9 @@ export async function fail(adId: string, userId: string, error: string) {
 }
 
 async function finalize(row: Row, sourceUrl: string) {
-  let url = sourceUrl;
+  let url: string | null = sourceUrl;
+  let key: string | null = null;
+  let stored = false;
   if (storageEnabled) {
     const dir = await mkdtemp(join(tmpdir(), "ad-"));
     try {
@@ -30,15 +32,17 @@ async function finalize(row: Row, sourceUrl: string) {
       let file = join(dir, "in.mp4");
       try { await burnCaptions(dir, "in.mp4", "out.mp4", `${row.hook}. ${row.script}`); file = join(dir, "out.mp4"); }
       catch (e) { log.warn("captions skipped", { adId: row.id, err: e }); }
-      url = await uploadVideo(file, `videos/${row.user_id}/${row.id}.mp4`);
+      const up = await uploadVideo(file, `videos/${row.user_id}/${row.id}.mp4`);
+      stored = true;
+      if (privateMedia) { key = up; url = null; } else url = up;
     } catch (e) {
       log.warn("storage fallback", { adId: row.id, err: e });
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
   }
-  await query("update ads set status = 'done', video_url = $2, error = null, updated_at = now() where id = $1 and status = 'processing'", [row.id, url]);
-  if (storageEnabled && url !== sourceUrl && row.video_job_id) await provider.cleanup?.(row.video_job_id);
+  await query("update ads set status = 'done', video_url = $2, video_key = $3, error = null, updated_at = now() where id = $1 and status = 'processing'", [row.id, url, key]);
+  if (stored && row.video_job_id) await provider.cleanup?.(row.video_job_id);
 }
 
 export async function processAd(adId: string) {

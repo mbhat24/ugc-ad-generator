@@ -30,6 +30,7 @@ Without `NEXT_PUBLIC_SUPABASE_URL` the app uses a dev-only login (any email, pas
 ## Docs
 - [Documentation index](docs/README.md)
 - [Architecture](docs/architecture/README.md)
+- [Launch checklist (go-live steps)](docs/ops/launch-checklist.md)
 - [Roadmap](docs/roadmap.md)
 
 ## Docker

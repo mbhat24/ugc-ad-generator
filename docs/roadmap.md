@@ -24,8 +24,8 @@ Built but not yet verified end-to-end against live Supabase, Stripe, S3/R2 and H
 ## P2 - hardening
 - [ ] Rate limiting by IP (auth and API), bot protection (Turnstile)
 - [ ] DNS-rebinding-proof scraper (pin resolved IP) and sandboxed scraper worker
-- [ ] Moderation: block restricted products/claims; copy and video policy checks
-- [ ] Row Level Security policies in Supabase; least-privilege DB roles
+- [x] Moderation: keyword category blocks, claim scrubbing, optional OpenAI moderation; [ ] image/video-level checks
+- [x] RLS enabled on all tables, anon/authenticated revoked (migration 003); [ ] dedicated least-privilege web DB role (see launch checklist)
 - [ ] Audit log, admin dashboard, abuse tooling
 - [ ] Credit expiry/rollover policy per plan
 - [ ] Secrets management, key rotation

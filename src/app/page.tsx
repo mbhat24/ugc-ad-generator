@@ -94,7 +94,7 @@ export default function Home() {
         </div>
       </section>
 
-      <footer className="border-t border-white/10 py-8 text-center text-xs text-white/40">&copy; AdReel. Videos are AI-generated; label them where platforms require.</footer>
+      <footer className="border-t border-white/10 py-8 text-center text-xs text-white/40">&copy; AdReel. Videos are AI-generated; label them where platforms require.<div className="mt-2 space-x-4"><Link href="/terms" className="hover:text-white">Terms</Link><Link href="/privacy" className="hover:text-white">Privacy</Link><Link href="/acceptable-use" className="hover:text-white">Acceptable use</Link></div></footer>
     </main>
   );
 }

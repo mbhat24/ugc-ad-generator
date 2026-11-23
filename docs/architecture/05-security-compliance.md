@@ -13,10 +13,11 @@ Boundaries: Internet to web; web/worker to Postgres; web/worker to third parties
 | Tampering | Edit others' projects | Ownership predicate in every query | Implemented |
 | Repudiation | Dispute credits | Append-only ledger with reasons and refs | Implemented |
 | Information disclosure | SSRF to metadata/internal | DNS-resolved private-IP blocking, redirect re-validation | Implemented (rebinding gap noted) |
-| Information disclosure | Cross-tenant video access | Unguessable but public URLs | Gap: signed URLs [Planned] |
+| Information disclosure | Cross-tenant video access | Private bucket, 1-hour signed URLs minted per authenticated read | Implemented |
 | DoS | Flood project creation | Per-user caps, Postgres-backed per-IP and per-email limits on login/signup, per-user limits on projects/billing | Implemented; global/WAF limits [Planned] |
 | DoS | Giant pages | Body cap, timeouts | Implemented |
-| Elevation | Over-privileged DB role | Single privileged role in v1 | Gap: least privilege + RLS [Planned] |
+| Elevation | Anon-key access to tables via Supabase REST | RLS enabled on every table with no policies, anon/authenticated privileges revoked (migration 003) | Implemented |
+| Elevation | Over-privileged DB role | Single privileged role in v1 | Gap: dedicated web-tier role [Planned] |
 | Cost abuse | Free-tier farming | 1 credit on signup | Partial; email verification, device/IP heuristics, CAPTCHA [Planned] |
 
 ## 3. Authentication and sessions
@@ -50,7 +51,7 @@ Card data never touches AdReel; Stripe Checkout and portal keep scope at SAQ A. 
 - Product text is sent to OpenAI and Higgsfield; confirm DPAs and no-training terms. Higgsfield documents a model-training opt-out and shorter retention (`Hf-Expires-After`); use both for customer data [Planned]. Provider copies are deleted after we store our own.
 
 ## 9. Content and platform policy
-- Prohibited categories (weapons, adult, illegal, deceptive health/finance claims) must be blocked pre-generation [Planned classifier + rules].
+- Prohibited categories (weapons, adult, illegal, deceptive health/finance claims) must be blocked pre-generation [Implemented: keyword category blocks, generated-claim scrubbing, optional OpenAI moderation; Planned: image/video checks].
 - Synthetic-media disclosure: TikTok, Meta and YouTube require labeling of realistic AI-generated content; surface a label/watermark option and guidance in-product.
 - Avoid generating likeness of real people without consent; use provider-approved synthetic avatars only.
 - Terms of Service and Acceptable Use Policy required before public launch; DMCA/takedown contact.

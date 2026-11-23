@@ -6,6 +6,7 @@ import { badOrigin, fail, readJson } from "@/lib/http";
 import { log } from "@/lib/log";
 import { scrapeProduct } from "@/lib/scrape";
 import { generateCopy } from "@/lib/script";
+import { checkProduct, checkWithOpenAI, scrubClaims } from "@/lib/moderation";
 
 export async function POST(req: Request) {
   if (badOrigin(req)) return fail("Bad origin", 403);
@@ -21,7 +22,9 @@ export async function POST(req: Request) {
 
   let product;
   try { product = await scrapeProduct(url); } catch (e) { return Response.json({ error: (e as Error).message }, { status: 400 }); }
-  const copies = await generateCopy(product, count);
+  const blocked = checkProduct(product) ?? (await checkWithOpenAI(product));
+  if (blocked) { log.warn("product blocked by moderation", { userId: user.id, url }); return fail(blocked, 422); }
+  const copies = (await generateCopy(product, count)).map(scrubClaims);
 
   const created = await tx(async (c) => {
     await c.query("select 1 from profiles where id = $1 for update", [user.id]);
