@@ -14,5 +14,9 @@ Next.js app + background worker. Supabase (Auth + Postgres), Stripe subscription
 4. Storage: create an R2/S3 bucket with a public URL and set `S3_*`.
 5. Run: `npm run dev` and `npm run worker` in two terminals.
 
+## Docs
+- [Architecture](docs/ARCHITECTURE.md)
+- [Roadmap and future work](docs/ROADMAP.md)
+
 ## Docker
 `docker compose up --build` (reads `.env`; `NEXT_PUBLIC_SUPABASE_*` are baked in at build time). Scale workers with `docker compose up --scale worker=N`.
