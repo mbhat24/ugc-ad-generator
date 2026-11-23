@@ -19,7 +19,7 @@ Principle: do not build for 100M users on day one. Build a design whose bottlene
 | Postgres writes | Ledger/ads write contention | Partition by time, batch inserts, balances table, shard by `user_id` hash |
 | Queue (pg-boss) | Poll load, bloat, latency | Raise poll interval, dedicated queue DB, then SQS/Kafka/Temporal |
 | Workers | ffmpeg CPU | Horizontal scale, CPU-optimized nodes, GPU/hardware encode, separate caption service |
-| Provider | 429s, long queues | Quotas, multi-provider routing, priority by plan, backpressure to users, committed-use deals |
+| Provider | `queued` requests, `429 account_queue_full` | Higgsfield limits concurrent processing per account/model and queues the excess up to a multiple of that limit. Cap our submission concurrency below it, honor `Retry-After`, route to other providers, prioritize paid plans, backpressure to users, negotiate capacity (Higgsfield enterprise capacity docs) |
 | Storage/egress | Cost and latency | CDN, lifecycle tiers, expire free-tier videos, HLS |
 | Scraper | Blocks, slow pages | Per-domain concurrency limits, proxy pool, cache, headless pool |
 | Stripe webhooks | Backlog | Fast ack, enqueue handling, idempotent consumers |

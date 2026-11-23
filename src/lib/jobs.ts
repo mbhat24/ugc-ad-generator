@@ -4,7 +4,7 @@ import { join } from "path";
 import { query, type Ad, type Product } from "./db";
 import { burnCaptions } from "./captions";
 import { storageEnabled, uploadVideo } from "./storage";
-import { provider } from "./video";
+import { provider, RetryLater } from "./video";
 import { enqueueAd } from "./queue";
 
 const MAX_AGE_MS = 25 * 60 * 1000;
@@ -36,6 +36,7 @@ async function finalize(row: Row, sourceUrl: string) {
     }
   }
   await query("update ads set status = 'done', video_url = $2, error = null where id = $1 and status = 'processing'", [row.id, url]);
+  if (storageEnabled && url !== sourceUrl && row.video_job_id) await provider.cleanup?.(row.video_job_id);
 }
 
 export async function processAd(adId: string) {
@@ -53,6 +54,7 @@ export async function processAd(adId: string) {
     if (s.status === "failed" || !s.videoUrl) return await fail(adId, row.user_id, s.error ?? "Generation failed");
     await finalize(row, s.videoUrl);
   } catch (e) {
+    if (e instanceof RetryLater) return await enqueueAd(adId, e.seconds);
     await fail(adId, row.user_id, (e as Error).message);
   }
 }

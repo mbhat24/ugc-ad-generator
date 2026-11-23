@@ -15,9 +15,9 @@ Next.js app + background worker. Supabase (Auth + Postgres), Stripe subscription
 5. Run: `npm run dev` and `npm run worker` in two terminals.
 
 ## Docs
-- [Architecture (detailed, 8 documents)](docs/architecture/README.md)
-- [Architecture summary](docs/ARCHITECTURE.md)
-- [Roadmap and future work](docs/ROADMAP.md)
+- [Documentation index](docs/README.md)
+- [Architecture](docs/architecture/README.md)
+- [Roadmap](docs/roadmap.md)
 
 ## Docker
 `docker compose up --build` (reads `.env`; `NEXT_PUBLIC_SUPABASE_*` are baked in at build time). Scale workers with `docker compose up --scale worker=N`.

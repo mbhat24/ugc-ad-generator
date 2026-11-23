@@ -28,10 +28,14 @@ flowchart LR
 
 ## 4. Provider abstraction
 `VideoProvider { start(ad, product) -> jobId; poll(jobId) -> {processing|done|failed} }`.
-- Implementations: Higgsfield (HTTP, key auth, polls a status URL) and mock (placeholder clip for demo).
+- Implementations: Higgsfield (HTTP) and mock (placeholder clip for demo).
+- Verified against the official Higgsfield API docs (docs.higgsfield.ai): `Authorization: Key <id>:<secret>`; asynchronous lifecycle `queued -> in_progress -> completed | failed | nsfw | canceled`; submit returns `request_id`; status at `GET /requests/{id}/status` with output in `video.url`; optional `Idempotency-Key` header; optional `hf_webhook` query parameter; `429` with `Retry-After` when the account queue is full; output retained 7 days (`expires_at`) unless shortened; `DELETE /requests/{id}` removes files and prompt.
 - Selection by environment (`HIGGSFIELD_*` set => real).
 - [Planned] additional providers (Runway, Kling, Veo, Sora-class, Heygen-style avatars), a router choosing by cost, latency, quota and content type, and a circuit breaker that fails over on elevated error rate.
-- The Higgsfield endpoint, auth scheme and response schema in the code are best-effort and must be verified against current official documentation before launch.
+- **Still unverified:** the model-specific request body. Higgsfield documents each model separately (console.higgsfield.ai). `HIGGSFIELD_MODEL` is the endpoint path and the body fields in `src/lib/video/index.ts` (`prompt`, `aspect_ratio`, `duration`, `image_url`) must be matched to the chosen model's schema and tested with a real account.
+- Submissions send `Idempotency-Key = adId`, so an ambiguous timeout or retry never creates a duplicate paid generation.
+- `429`/`503` from the provider are treated as retryable: the job is requeued after `Retry-After` and the credit stays reserved, instead of failing the ad.
+- After a finished video is copied to our storage, the provider copy (including the prompt) is deleted via `DELETE /requests/{id}` as data minimization.
 
 ## 5. Job lifecycle (worker)
 1. Dequeue `{adId}`; load ad + project in one query; skip if terminal.
@@ -40,7 +44,9 @@ flowchart LR
 4. Else `poll`: still running => requeue; failed => fail + refund; done => finalize.
 5. Finalize: download, burn captions, upload, set `done` with the public URL.
 Queue config: retries 3 with exponential backoff, expiry 900 s, local concurrency `WORKER_CONCURRENCY` (default 5).
-Why requeue-poll instead of a long-held job: workers never hold a slot while waiting on the provider, so concurrency is bounded by CPU/ffmpeg, not by provider latency. [Planned] switch to provider webhooks where offered, keeping polling as a safety net.
+Why requeue-poll instead of a long-held job: workers never hold a slot while waiting on the provider, so concurrency is bounded by CPU/ffmpeg, not by provider latency.
+
+**Webhooks [Implemented, optional]:** when `APP_URL` is https and `HIGGSFIELD_WEBHOOK_SECRET` is set, submissions include `hf_webhook`. `POST /api/higgsfield/webhook` verifies the Standard Webhooks signature (HMAC-SHA256 over `webhook-id.webhook-timestamp.body`, 5-minute tolerance, constant-time compare, supports multiple `v1,` signatures for secret rotation), then only enqueues an immediate job for the matching ad. The worker still confirms by polling the authenticated status endpoint, so a forged or replayed webhook can never inject a video URL, and duplicate deliveries are harmless. Polling stays as the fallback, as Higgsfield recommends when retention is shorter than the retry window.
 
 ## 6. Captions
 - Script split into ~4-word cues timed evenly over probed duration (ffprobe), written as SRT.
@@ -65,5 +71,6 @@ Why requeue-poll instead of a long-held job: workers never hold a slot while wai
 | Per-user hourly/daily caps | Bounds abuse and runaway spend |
 | Free tier = 1 video, watermark [Planned] | Limits acquisition cost |
 | Provider router | Cheapest adequate model per request |
+| Higgsfield concurrency limit | Excess requests queue provider-side; the queue is capped at a multiple of the account limit, beyond which submissions get `429`. Size `WORKER_CONCURRENCY` and plan caps to it, and ask Higgsfield before traffic increases |
 | Prompt/duration tuning | Shorter clips reduce cost |
 | Scrape cache | Avoids repeated fetches |

@@ -14,6 +14,6 @@ Legend used throughout: **[Implemented]** exists in this repo, **[Planned]** des
 | 06 | [Infrastructure and operations](06-infrastructure-operations.md) | Environments, deployment, observability, SLOs, DR, cost model |
 | 07 | [Scaling strategy](07-scaling.md) | Stage-by-stage plan from 0 to 100M+ users, bottlenecks, cost limits |
 | 08 | [Architecture decision records](08-adrs.md) | Key decisions, alternatives, consequences |
-| - | [Roadmap](../ROADMAP.md) | Prioritized future work |
+| - | [Roadmap](../roadmap.md) | Prioritized future work |
 
 Status honesty: the v1 code builds and lints, but the integrations (Supabase, Stripe, S3/R2, Higgsfield) have not been exercised against live accounts.

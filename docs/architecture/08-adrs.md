@@ -31,11 +31,11 @@ Decision: thin query helpers and explicit SQL.
 Alternatives: Prisma/Drizzle.
 Consequences: fewer dependencies and full control of transactions/locks; no generated types or migrations tooling yet. Revisit: adopt Drizzle with versioned migrations before production data (roadmap P0).
 
-## ADR-006 Polling for provider status inside the worker
-Context: provider webhook support is unverified.
-Decision: start job, requeue with delay, poll.
-Alternatives: long-held worker job (wastes slots); webhooks (preferred when available).
-Consequences: simple and robust; adds poll traffic and up to ~8 s latency. Add webhooks as accelerator, keep polling as fallback.
+## ADR-006 Webhook-accelerated polling for provider status
+Context: Higgsfield supports signed webhooks (retried up to 2 hours, duplicates possible) and polling, and recommends polling as the fallback.
+Decision: worker starts the job, requeues with delay and polls; an optional verified webhook only triggers an immediate re-poll.
+Alternatives: long-held worker job (wastes slots); trusting webhook payload directly (forgery/replay risk, ordering issues).
+Consequences: correct even if webhooks are lost or forged; poll traffic remains and latency is up to ~8 s without webhooks.
 
 ## ADR-007 Provider abstraction with mock implementation
 Decision: `VideoProvider` interface and environment-selected implementation.

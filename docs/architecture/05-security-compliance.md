@@ -9,6 +9,7 @@ Boundaries: Internet to web; web/worker to Postgres; web/worker to third parties
 |---|---|---|---|
 | Spoofing | Stolen session | httpOnly, SameSite=lax cookies via Supabase SSR; server-side `getUser()` | Implemented |
 | Tampering | Forged Stripe event | Signature verification with webhook secret | Implemented |
+| Tampering | Forged/replayed Higgsfield webhook | Standard Webhooks signature + timestamp check; webhook only triggers a re-poll, never carries trusted data | Implemented |
 | Tampering | Edit others' projects | Ownership predicate in every query | Implemented |
 | Repudiation | Dispute credits | Append-only ledger with reasons and refs | Implemented |
 | Information disclosure | SSRF to metadata/internal | DNS-resolved private-IP blocking, redirect re-validation | Implemented (rebinding gap noted) |
@@ -45,7 +46,7 @@ Card data never touches AdReel; Stripe Checkout and portal keep scope at SAQ A. 
 - Data minimization: email, product data, generated content. No analytics PII beyond need.
 - Rights: access, export, erasure workflows [Planned] (see doc 03 section 6).
 - Subprocessors to disclose: Supabase, Stripe, Higgsfield, OpenAI, storage/CDN provider, hosting provider.
-- Product text is sent to OpenAI and Higgsfield; confirm DPAs and no-training terms.
+- Product text is sent to OpenAI and Higgsfield; confirm DPAs and no-training terms. Higgsfield documents a model-training opt-out and shorter retention (`Hf-Expires-After`); use both for customer data [Planned]. Provider copies are deleted after we store our own.
 
 ## 9. Content and platform policy
 - Prohibited categories (weapons, adult, illegal, deceptive health/finance claims) must be blocked pre-generation [Planned classifier + rules].

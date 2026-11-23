@@ -5,7 +5,7 @@ Built but not yet verified end-to-end against live Supabase, Stripe, S3/R2 and H
 
 ## P0 - make v1 production-ready
 - [ ] Run against real Supabase/Stripe/R2; fix integration issues
-- [ ] Verify Higgsfield endpoint, auth header and response shape; add webhook support if offered
+- [ ] Pick the Higgsfield model in the console and match `HIGGSFIELD_MODEL` and the request body to its schema; test with a real account (auth, status lifecycle, idempotency, 429 and webhook handling are implemented per the official docs)
 - [ ] Integration tests for credit debit/refund, webhook idempotency, worker state machine
 - [ ] Email confirmation + password reset UX pages
 - [ ] Custom domain, TLS, `APP_URL`, Stripe live mode

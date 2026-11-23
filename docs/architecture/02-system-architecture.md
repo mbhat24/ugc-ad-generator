@@ -79,7 +79,7 @@ sequenceDiagram
   U->>W: POST /api/projects {url,count}
   W->>DB: balance, usage limits
   W->>W: scrape product (SSRF-safe), generate copy
-  W->>DB: BEGIN; lock profile; recheck balance; insert project+ads; ledger -1 each; COMMIT
+  W->>DB: One transaction: lock profile row, recheck balance, insert project and ads, debit ledger per ad
   W->>Q: send(ad-generate, adId) x N
   W-->>U: 200 {projectId}
   loop every ~8s until done
