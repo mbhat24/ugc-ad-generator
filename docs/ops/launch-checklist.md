@@ -15,7 +15,7 @@ Work top to bottom. Each step lists what to do and how to verify. Items marked (
 - [ ] `DATABASE_URL=... npm run migrate` (applies `migrations/001-003`; RLS is enabled so the Supabase anon key cannot read tables (code)).
 - [ ] Verify in Supabase SQL editor: `select relname, relrowsecurity from pg_class where relname in ('profiles','ads','projects','credit_ledger');` all true.
 - [ ] Enable daily backups and point-in-time recovery; run one restore test.
-- [ ] Optional hardening: create a dedicated role for the web tier with only SELECT/INSERT/UPDATE/DELETE on the app tables and use it in `DATABASE_URL` for `web`, keeping the owner role for migrations and the worker.
+- [ ] Optional hardening: run `docs/ops/least-privilege.sql` (verified locally: the role can read/write app tables and enqueue, but cannot alter schema) and use that role in `DATABASE_URL` for `web`; keep the owner role for migrations and the worker. Read the Supabase note in the file about BYPASSRLS.
 
 ## 3. Deploy
 - [ ] Build images: `docker build --target web -t adreel-web --build-arg NEXT_PUBLIC_SUPABASE_URL=... --build-arg NEXT_PUBLIC_SUPABASE_ANON_KEY=... .` and `docker build --target worker -t adreel-worker .`

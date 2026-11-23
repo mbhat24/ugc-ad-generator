@@ -25,7 +25,7 @@ npm run worker     # terminal 2
 Without `NEXT_PUBLIC_SUPABASE_URL` the app uses a dev-only login (any email, password ignored, disabled when `NODE_ENV=production`), the mock video provider, and template copy. Set the real keys to switch each integration on.
 
 ## Tests
-`npm test` (needs the dev Postgres; the concurrency test also needs `npm run dev` running and is skipped otherwise).
+`npm test` (needs the dev Postgres; storage tests run when `S3_*` points at an S3-compatible server; the concurrency test also needs `npm run dev` running and is skipped otherwise).
 
 ## Docs
 - [Documentation index](docs/README.md)
