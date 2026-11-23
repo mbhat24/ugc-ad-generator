@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
 import Link from "next/link";
+import Logo from "@/components/Logo";
 
 export default function AuthForm({ mode }: { mode: "login" | "signup" }) {
   const [error, setError] = useState("");
@@ -20,7 +21,7 @@ export default function AuthForm({ mode }: { mode: "login" | "signup" }) {
 
   return (
     <main className="mx-auto flex min-h-screen max-w-sm flex-col justify-center px-6">
-      <Link href="/" className="mb-8 text-xl font-bold">AdReel</Link>
+      <div className="mb-8"><Logo /></div>
       <h1 className="mb-6 text-2xl font-semibold">{mode === "login" ? "Welcome back" : "Create your account"}</h1>
       <form onSubmit={submit} className="space-y-3">
         <input name="email" type="email" required placeholder="you@store.com" className="w-full rounded-lg border border-white/15 bg-white/5 px-4 py-3 outline-none focus:border-fuchsia-400" />

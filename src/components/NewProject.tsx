@@ -26,7 +26,7 @@ export default function NewProject({ remaining }: { remaining: number }) {
         <select name="count" defaultValue={max} disabled={max < 1} className="rounded-lg border border-white/15 bg-black/30 px-3 py-3">
           {Array.from({ length: Math.max(max, 1) }, (_, i) => <option key={i} value={i + 1}>{i + 1} video{i ? "s" : ""}</option>)}
         </select>
-        <button disabled={busy || max < 1} className="rounded-lg bg-fuchsia-500 px-6 py-3 font-semibold hover:bg-fuchsia-400 disabled:opacity-50">{busy ? "Generating..." : "Generate ads"}</button>
+        <button disabled={busy || max < 1} className="rounded-lg bg-fuchsia-500 px-6 py-3 font-semibold hover:bg-fuchsia-400 disabled:opacity-50">{busy ? "Reading product..." : "Generate ads"}</button>
       </div>
       {error && <p className="text-sm text-red-400">{error}</p>}
       {max < 1 && <p className="text-sm text-amber-300">You are out of videos this month. Upgrade below.</p>}
