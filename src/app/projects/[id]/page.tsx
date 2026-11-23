@@ -2,7 +2,7 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { currentUser } from "@/lib/auth";
-import { withDB } from "@/lib/db";
+import { getProject } from "@/lib/db";
 import ProjectView from "@/components/ProjectView";
 
 export default function Page({ params }: PageProps<"/projects/[id]">) {
@@ -13,7 +13,7 @@ async function ProjectPage({ params }: Pick<PageProps<"/projects/[id]">, "params
   const { id } = await params;
   const user = await currentUser();
   if (!user) redirect("/login");
-  const project = await withDB((db) => db.projects.find((p) => p.id === id && p.userId === user.id));
+  const project = await getProject(id, user.id);
   if (!project) notFound();
   return (
     <main className="mx-auto max-w-5xl space-y-6 px-6 py-10">

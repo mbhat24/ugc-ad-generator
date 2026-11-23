@@ -1,7 +1,10 @@
-import { signup } from "@/lib/auth";
+import { supabaseServer } from "@/lib/supabase";
 
 export async function POST(req: Request) {
   const { email, password } = await req.json();
-  try { await signup(String(email ?? ""), String(password ?? "")); return Response.json({ ok: true }); }
-  catch (e) { return Response.json({ error: (e as Error).message }, { status: 400 }); }
+  const e = String(email ?? "").trim().toLowerCase();
+  if (!/^\S+@\S+\.\S+$/.test(e) || String(password ?? "").length < 8) return Response.json({ error: "Enter a valid email and a password of 8+ characters" }, { status: 400 });
+  const { data, error } = await (await supabaseServer()).auth.signUp({ email: e, password: String(password), options: { emailRedirectTo: `${process.env.APP_URL ?? ""}/dashboard` } });
+  if (error) return Response.json({ error: error.message }, { status: 400 });
+  return Response.json({ ok: true, confirm: !data.session });
 }

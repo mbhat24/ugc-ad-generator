@@ -15,7 +15,7 @@ const templates = (p: Project["product"]): Copy[] => [
   { hook: `3 reasons I'm never going back after the ${p.title}`, script: `One: it actually works. Two: it looks great. Three: ${p.price ? `it's ${p.price}` : "the price is unreal"}. ${p.description.slice(0, 100)} Seriously, try it.`, caption: `3 reasons you need the ${p.title}`, hashtags: ["#gamechanger", "#productreview", "#shopsmall"] },
 ];
 
-export async function generateCopy(p: Project["product"], count: number): Promise<Omit<Ad, "status">[]> {
+export async function generateCopy(p: Project["product"], count: number): Promise<Omit<Ad, "status" | "id">[]> {
   let copies: Copy[] = [];
   const key = process.env.OPENAI_API_KEY;
   if (key) {

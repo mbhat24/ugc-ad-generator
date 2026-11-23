@@ -1,8 +1,8 @@
 import { Suspense } from "react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { currentUser, quotaOf } from "@/lib/auth";
-import { withDB } from "@/lib/db";
+import { currentUser } from "@/lib/auth";
+import { listProjects } from "@/lib/db";
 import { PLANS } from "@/lib/plans";
 import { isMock } from "@/lib/video";
 import NewProject from "@/components/NewProject";
@@ -16,8 +16,8 @@ export default function Page() {
 async function Dashboard() {
   const user = await currentUser();
   if (!user) redirect("/login");
-  const projects = (await withDB((db) => db.projects.filter((p) => p.userId === user.id))).reverse();
-  const remaining = Math.max(0, quotaOf(user) - user.usedThisMonth);
+  const projects = await listProjects(user.id);
+  const remaining = Math.max(0, user.balance);
 
   return (
     <main className="mx-auto max-w-4xl space-y-8 px-6 py-10">
@@ -27,7 +27,7 @@ async function Dashboard() {
       </header>
       {isMock && <div className="rounded-lg border border-amber-400/30 bg-amber-400/10 p-3 text-sm text-amber-200">Demo mode: the Higgsfield keys are not set, so videos are placeholder clips. See .env.example.</div>}
       <section className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/5 p-5">
-        <div><div className="text-sm text-white/50">{PLANS[user.plan].name}</div><div className="text-2xl font-bold">{remaining} <span className="text-base font-normal text-white/50">of {quotaOf(user)} videos left</span></div></div>
+        <div><div className="text-sm text-white/50">{PLANS[user.plan].name}</div><div className="text-2xl font-bold">{remaining} <span className="text-base font-normal text-white/50">videos left</span></div></div>
       </section>
       <NewProject remaining={remaining} />
       <section>
@@ -43,7 +43,7 @@ async function Dashboard() {
           </ul>
         )}
       </section>
-      <section><h2 className="mb-3 text-lg font-semibold">Upgrade</h2><PlanPicker current={user.plan} /></section>
+      <section><h2 className="mb-3 text-lg font-semibold">Upgrade</h2><PlanPicker current={user.plan} hasBilling={user.hasBilling} /></section>
     </main>
   );
 }

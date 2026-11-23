@@ -1,6 +1,6 @@
-import { destroySession } from "@/lib/auth";
+import { supabaseServer } from "@/lib/supabase";
 
 export async function POST() {
-  await destroySession();
+  await (await supabaseServer()).auth.signOut();
   return Response.json({ ok: true });
 }
