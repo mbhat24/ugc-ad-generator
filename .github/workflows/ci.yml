@@ -1,0 +1,29 @@
+name: CI
+on:
+  push:
+    branches: [main, v1]
+  pull_request:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env: { POSTGRES_USER: adreel, POSTGRES_PASSWORD: adreel, POSTGRES_DB: adreel }
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U adreel" --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      DATABASE_URL: postgres://adreel:adreel@localhost:5432/adreel
+      NEXT_PUBLIC_SUPABASE_URL: http://localhost.invalid
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ci
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - run: npm run lint
+      - run: npx tsc --noEmit
+      - run: npm run migrate
+      - run: npm test
+      - run: npm run build

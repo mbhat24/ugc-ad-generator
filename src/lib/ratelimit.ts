@@ -9,3 +9,22 @@ export async function overUsage(userId: string) {
   if (Number(r.daily) >= Number(process.env.MAX_ADS_PER_DAY ?? 30)) return "Daily generation limit reached. Try again tomorrow.";
   return null;
 }
+
+export function clientIp(req: Request) {
+  const hops = Number(process.env.TRUSTED_PROXY_HOPS ?? 1);
+  const parts = (req.headers.get("x-forwarded-for") ?? "").split(",").map((s) => s.trim()).filter(Boolean);
+  return parts[parts.length - hops] ?? req.headers.get("x-real-ip") ?? "unknown";
+}
+
+export async function hit(key: string, max: number, windowSec: number) {
+  const [r] = await query<{ count: number }>(
+    `insert into rate_limits (key, window_start, count)
+     values ($1, to_timestamp(floor(extract(epoch from now()) / $2) * $2), 1)
+     on conflict (key, window_start) do update set count = rate_limits.count + 1
+     returning count`, [key, windowSec]);
+  return r.count > max;
+}
+
+export async function limited(req: Request, name: string, max: number, windowSec: number, extra = "") {
+  return hit(`${name}:${clientIp(req)}${extra ? `:${extra}` : ""}`, max, windowSec);
+}

@@ -9,7 +9,8 @@ Built but not yet verified end-to-end against live Supabase, Stripe, S3/R2 and H
 - [ ] Integration tests for credit debit/refund, webhook idempotency, worker state machine
 - [ ] Email confirmation + password reset UX pages
 - [ ] Custom domain, TLS, `APP_URL`, Stripe live mode
-- [ ] CI (lint, typecheck, build, tests) on GitHub Actions
+- [x] CI (lint, typecheck, migrate, tests, build) on GitHub Actions: `.github/workflows/ci.yml`
+- [x] Versioned migrations, health/readiness endpoints, per-IP rate limits, security headers, reconciler + dead-letter queue, account export/deletion, Stripe event dedupe, config validation
 
 ## P1 - product
 - [ ] Multiple product images and avatar/voice selection; avatar library

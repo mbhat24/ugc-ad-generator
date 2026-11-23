@@ -1,19 +1,23 @@
 import { currentUser } from "@/lib/auth";
-import { tx, query } from "@/lib/db";
+import { tx } from "@/lib/db";
 import { enqueueAd } from "@/lib/queue";
-import { overUsage } from "@/lib/ratelimit";
+import { limited, overUsage } from "@/lib/ratelimit";
+import { badOrigin, fail, readJson } from "@/lib/http";
+import { log } from "@/lib/log";
 import { scrapeProduct } from "@/lib/scrape";
 import { generateCopy } from "@/lib/script";
 
 export async function POST(req: Request) {
+  if (badOrigin(req)) return fail("Bad origin", 403);
   const user = await currentUser();
-  if (!user) return Response.json({ error: "Not signed in" }, { status: 401 });
-  const body = await req.json().catch(() => ({}));
+  if (!user) return fail("Not signed in", 401);
+  if (await limited(req, "projects", 30, 3600, user.id)) return fail("Too many requests. Try again later.", 429);
+  const body = (await readJson(req)) ?? {};
   const url = String(body.url ?? "").trim().slice(0, 2000);
   const count = Math.min(Math.max(Number(body.count) || 1, 1), 3);
   if (user.balance < count) return Response.json({ error: `Not enough videos left (${user.balance} remaining). Upgrade your plan.`, code: "no_credits" }, { status: 402 });
-  const limited = await overUsage(user.id);
-  if (limited) return Response.json({ error: limited }, { status: 429 });
+  const overQuota = await overUsage(user.id);
+  if (overQuota) return fail(overQuota, 429);
 
   let product;
   try { product = await scrapeProduct(url); } catch (e) { return Response.json({ error: (e as Error).message }, { status: 400 }); }
@@ -34,7 +38,11 @@ export async function POST(req: Request) {
   });
   if (!created) return Response.json({ error: "Not enough videos left. Upgrade your plan.", code: "no_credits" }, { status: 402 });
 
+  log.info("project created", { userId: user.id, projectId: created.pid, ads: created.adIds.length });
   try { await Promise.all(created.adIds.map((id) => enqueueAd(id))); }
-  catch { await query("update ads set status = 'failed', error = 'Could not queue video' where project_id = $1", [created.pid]); await query("insert into credit_ledger (user_id, delta, reason, ref) select $1, 1, 'refund', id::text from ads where project_id = $2 on conflict do nothing", [user.id, created.pid]); }
+  catch (e) {
+    log.error("enqueue failed, ads will be picked up by reconciler", { projectId: created.pid, err: e });
+    return Response.json({ id: created.pid });
+  }
   return Response.json({ id: created.pid });
 }

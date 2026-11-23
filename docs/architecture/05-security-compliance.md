@@ -14,7 +14,7 @@ Boundaries: Internet to web; web/worker to Postgres; web/worker to third parties
 | Repudiation | Dispute credits | Append-only ledger with reasons and refs | Implemented |
 | Information disclosure | SSRF to metadata/internal | DNS-resolved private-IP blocking, redirect re-validation | Implemented (rebinding gap noted) |
 | Information disclosure | Cross-tenant video access | Unguessable but public URLs | Gap: signed URLs [Planned] |
-| DoS | Flood project creation | Per-user caps | Implemented; IP/global limits [Planned] |
+| DoS | Flood project creation | Per-user caps, Postgres-backed per-IP and per-email limits on login/signup, per-user limits on projects/billing | Implemented; global/WAF limits [Planned] |
 | DoS | Giant pages | Body cap, timeouts | Implemented |
 | Elevation | Over-privileged DB role | Single privileged role in v1 | Gap: least privilege + RLS [Planned] |
 | Cost abuse | Free-tier farming | 1 credit on signup | Partial; email verification, device/IP heuristics, CAPTCHA [Planned] |
@@ -36,7 +36,8 @@ Single-tenant ownership model: `user_id` match on projects/ads. [Planned] organi
 ## 6. Application security
 - Input validation: URL length/scheme, count clamped 1-3, plan whitelist, UUID format check on ids.
 - Output: React escapes by default; scraped text is stripped of tags before use.
-- [Planned] security headers (CSP, HSTS, frame-ancestors, referrer policy), CSRF review for cookie-authenticated POSTs (SameSite=lax plus origin checks), dependency scanning (Dependabot, `npm audit` in CI), SAST, container image scanning, SBOM.
+- Implemented: security headers (X-Content-Type-Options, X-Frame-Options, Referrer-Policy, Permissions-Policy, HSTS in production, CSP limited to frame-ancestors/base-uri/form-action/object-src), Origin checks on every cookie-authenticated mutating route, JSON body size cap, fail-fast configuration validation in production, structured JSON logs.
+- [Planned] full script-src CSP with nonces, dependency scanning (Dependabot, `npm audit` in CI), SAST, container image scanning, SBOM.
 - Containers run as non-root `node` user; worker image minimal plus ffmpeg.
 
 ## 7. Payments and PCI

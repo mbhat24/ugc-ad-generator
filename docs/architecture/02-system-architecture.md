@@ -139,7 +139,7 @@ Transitions are guarded by `WHERE status IN (...)` updates so duplicate job deli
 | Stripe webhook delay/replay | Late/duplicate grants | Idempotency keys; retrieve-from-source |
 | DB failover | Brief errors | Retry on client; pooled connections; managed HA |
 | Scrape target slow/hostile | Request stalls | 12 s timeout, redirect cap, private-IP block |
-| Queue enqueue fails after commit | Paid ad never starts | Compensating fail + refund (implemented); [Planned] outbox reconciler |
+| Queue enqueue fails after commit | Paid ad never starts | Ads stay `pending` (credit already reserved atomically); the per-minute reconciler re-enqueues any active ad not updated for 3 minutes [Implemented] |
 
 ## 8. API surface (v1)
 | Method | Path | Auth | Purpose |

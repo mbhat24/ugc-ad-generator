@@ -1,4 +1,3 @@
-export const SCHEMA = `
 create table if not exists profiles (
   id uuid primary key,
   email text not null,
@@ -40,4 +39,3 @@ create table if not exists ads (
   created_at timestamptz not null default now()
 );
 create index if not exists ads_project_idx on ads(project_id);
-`;

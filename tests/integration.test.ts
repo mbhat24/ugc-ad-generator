@@ -3,11 +3,12 @@ import assert from "node:assert/strict";
 import { createHmac, randomUUID } from "node:crypto";
 import { pool, query } from "../src/lib/db";
 import { migrate } from "../src/lib/migrate";
+import { stopBoss } from "../src/lib/queue";
 import { processAd } from "../src/lib/jobs";
 
 const BASE = process.env.TEST_BASE_URL ?? "http://localhost:3000";
 const hasDb = !!process.env.DATABASE_URL;
-after(() => pool.end());
+after(async () => { await stopBoss(); await pool.end(); });
 
 async function seedAd(ageMinutes = 0) {
   const [u] = await query<{ id: string }>("insert into profiles (id, email) values ($1, $2) returning id", [randomUUID(), `t${Date.now()}${Math.random()}@test.dev`]);

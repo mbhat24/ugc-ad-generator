@@ -66,7 +66,7 @@ Indexes: `credit_ledger(user_id)`, unique partial `credit_ledger(reason, ref) WH
 | Operation | Guarantee |
 |---|---|
 | Create project + ads + debits | Single transaction (atomic) |
-| Enqueue jobs | After commit; failure triggers compensating fail+refund. [Planned] transactional outbox so enqueue and commit are atomic (pg-boss can share the transaction) |
+| Enqueue jobs | After commit. If enqueue fails the ads stay `pending` and the reconciler (scheduled every minute, deduplicated with `singletonKey`) re-enqueues them [Implemented]. [Planned] true transactional outbox (pg-boss can share the transaction) |
 | Ad status transitions | Conditional updates, at-least-once processing, effectively exactly-once outcome |
 | Stripe sync | Eventually consistent, idempotent, re-derivable from Stripe |
 
@@ -81,7 +81,7 @@ Indexes: `credit_ledger(user_id)`, unique partial `credit_ledger(reason, ref) WH
 | Ledger | 7 years financial record | Anonymize user link on erasure, keep amounts |
 | Queue history | 7-14 days | pg-boss archive/delete settings |
 | Logs | 30-90 days | No secrets, no passwords |
-Account deletion [Planned]: delete Supabase user, cascade profile/projects/ads, delete objects under `videos/{user}/`, cancel Stripe subscription, retain anonymized ledger.
+Account deletion [Implemented, `DELETE /api/account`, requires typing the account email]: cancels Stripe subscriptions, deletes objects under `videos/{user}/`, deletes the Supabase user (needs `SUPABASE_SERVICE_ROLE_KEY`), then deletes the profile (cascades projects/ads). The ledger FK was dropped in migration 002 so financial rows remain, keyed only by an opaque id. Each step is idempotent so a failed deletion can be retried. Export: `GET /api/account/export` [Implemented].
 
 ## 7. Growth and partitioning
 | Table | Growth driver | Plan |
@@ -92,7 +92,7 @@ Account deletion [Planned]: delete Supabase user, cascade profile/projects/ads, 
 | pgboss | Poll requeues | Tune poll interval; move to dedicated DB/queue at scale (doc 07) |
 
 ## 8. Migrations
-v1 applies an idempotent schema script under an advisory lock (`npm run migrate`, also run at worker start). [Planned] move to versioned migrations (e.g., drizzle-kit/atlas) with expand/contract rollout and CI checks before real production data exists.
+Versioned SQL migrations live in `migrations/` and are applied in order by `npm run migrate` and at worker start, inside transactions under an advisory lock, recorded in `schema_migrations` with a checksum (editing an applied migration fails loudly) [Implemented]. Convention: expand/contract, never edit applied files. The web tier does not migrate.
 
 ## 9. Row Level Security
 Server code connects with a privileged connection and enforces ownership in queries. [Planned] enable RLS on all tables as defense in depth, and use a least-privilege DB role for the web tier distinct from the worker.

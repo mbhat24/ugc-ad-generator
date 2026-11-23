@@ -1,5 +1,6 @@
 import { Pool, type PoolClient, type QueryResultRow } from "pg";
 import type { PlanId } from "./plans";
+import { log } from "./log";
 
 export type Ad = { id: string; hook: string; script: string; caption: string; hashtags: string[]; avatar: string; status: "pending" | "processing" | "done" | "failed"; videoJobId?: string; videoUrl?: string; error?: string };
 export type Product = { title: string; description: string; price?: string; image?: string; images: string[] };
@@ -7,7 +8,16 @@ export type Project = { id: string; userId: string; url: string; product: Produc
 export type Profile = { id: string; email: string; plan: PlanId; stripeCustomerId: string | null };
 
 const g = globalThis as unknown as { pgPool?: Pool };
-export const pool = (g.pgPool ??= new Pool({ connectionString: process.env.DATABASE_URL, max: Number(process.env.PG_POOL_MAX ?? 10) }));
+const sslMode = process.env.DATABASE_SSL ?? (process.env.NODE_ENV === "production" ? "require" : "off");
+const ssl = sslMode === "off" ? undefined : { rejectUnauthorized: sslMode === "verify", ca: process.env.DATABASE_CA };
+
+function createPool() {
+  const p = new Pool({ connectionString: process.env.DATABASE_URL, ssl, max: Number(process.env.PG_POOL_MAX ?? 10), idleTimeoutMillis: 30000, connectionTimeoutMillis: 10000, statement_timeout: Number(process.env.PG_STATEMENT_TIMEOUT_MS ?? 15000), application_name: process.env.PG_APP_NAME ?? "adreel" });
+  p.on("error", (e) => log.error("pg pool error", { err: e }));
+  return p;
+}
+
+export const pool = (g.pgPool ??= createPool());
 
 export async function query<T extends QueryResultRow = QueryResultRow>(text: string, params: unknown[] = []) {
   return (await pool.query<T>(text, params)).rows;
