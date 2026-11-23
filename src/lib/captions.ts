@@ -22,6 +22,6 @@ export async function burnCaptions(dir: string, input: string, output: string, t
   const { stdout } = await run("ffprobe", ["-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", input], { cwd: dir });
   const duration = Number(stdout.trim()) || 15;
   await writeFile(`${dir}/captions.srt`, buildSrt(text, duration));
-  const style = "Alignment=2,FontSize=16,Bold=1,Outline=2,MarginV=90";
+  const style = "Alignment=2,FontSize=11,Bold=1,Outline=2,MarginV=70";
   await run("ffmpeg", ["-y", "-i", input, "-vf", `subtitles=captions.srt:force_style='${style}'`, "-c:a", "copy", "-movflags", "+faststart", output], { cwd: dir, timeout: 120000 });
 }

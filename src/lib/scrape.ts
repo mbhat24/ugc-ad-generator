@@ -11,8 +11,12 @@ const meta = (html: string, key: string) => {
 const privateIp = (ip: string) => {
   if (isIP(ip) === 6) {
     const l = ip.toLowerCase();
-    if (l.startsWith("::ffff:")) return privateIp(l.slice(7));
-    return l === "::1" || l === "::" || /^f[cd]/.test(l) || /^fe[89ab]/.test(l);
+    if (l.startsWith("::ffff:")) {
+      const rest = l.slice(7);
+      const hex = rest.match(/^([0-9a-f]{1,4}):([0-9a-f]{1,4})$/);
+      return privateIp(hex ? [parseInt(hex[1], 16) >> 8, parseInt(hex[1], 16) & 255, parseInt(hex[2], 16) >> 8, parseInt(hex[2], 16) & 255].join(".") : rest);
+    }
+    return l === "::1" || l === "::" || /^f[cd]/.test(l) || /^fe[89ab]/.test(l) || l.startsWith("64:ff9b:") || l.startsWith("2002:");
   }
   const [a, b] = ip.split(".").map(Number);
   return a === 0 || a === 10 || a === 127 || (a === 169 && b === 254) || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) || (a === 100 && b >= 64 && b <= 127) || a >= 224;
