@@ -15,7 +15,8 @@ Next.js app + background worker. Supabase (Auth + Postgres), Stripe subscription
 5. Run: `npm run dev` and `npm run worker` in two terminals.
 
 ## Docs
-- [Architecture](docs/ARCHITECTURE.md)
+- [Architecture (detailed, 8 documents)](docs/architecture/README.md)
+- [Architecture summary](docs/ARCHITECTURE.md)
 - [Roadmap and future work](docs/ROADMAP.md)
 
 ## Docker

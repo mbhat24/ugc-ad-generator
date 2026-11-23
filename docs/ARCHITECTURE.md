@@ -1,5 +1,6 @@
 # Architecture (v1)
 
+> Detailed documentation: [docs/architecture/](architecture/README.md)
 ## Overview
 AdReel turns a product URL into short-form UGC video ads (9:16) with AI avatars, hooks, scripts and captions.
 
