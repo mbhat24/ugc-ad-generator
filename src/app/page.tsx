@@ -94,7 +94,7 @@ export default function Home() {
         </div>
       </section>
 
-      <footer className="border-t border-white/10 py-8 text-center text-xs text-white/40">&copy; {new Date().getFullYear()} AdReel. Videos are AI-generated; label them where platforms require.</footer>
+      <footer className="border-t border-white/10 py-8 text-center text-xs text-white/40">&copy; AdReel. Videos are AI-generated; label them where platforms require.</footer>
     </main>
   );
 }
