@@ -1,37 +1,42 @@
-# AdReel - UGC video ads from a product URL
+# AdReel
 
-Next.js app + background worker. Supabase (Auth + Postgres), Stripe subscriptions, S3-compatible storage, Higgsfield video generation.
+Turns a product URL into short-form UGC video ads (hook, script, captions and an AI-avatar video) for TikTok and Reels.
 
 ## Architecture
-- `web`: Next.js (stateless, scale horizontally). Creates projects, charges credits, enqueues jobs.
-- `worker`: pg-boss queue consumer. Starts/polls Higgsfield, burns captions with ffmpeg, uploads to S3/R2, refunds credits on failure.
-- Postgres: users' profiles, projects, ads, credit ledger (balance = sum of ledger), job queue.
-
-## Setup
-1. Create a Supabase project. Copy URL, anon key and the Postgres connection string (pooler, session mode) into `.env.local` (see `.env.example`).
-2. `npm run migrate`
-3. Stripe: create 3 recurring prices, set `STRIPE_PRICE_*`, point a webhook at `/api/stripe/webhook` (events: `customer.subscription.*`, `invoice.paid`).
-4. Storage: create an R2/S3 bucket with a public URL and set `S3_*`.
-5. Run: `npm run dev` and `npm run worker` in two terminals.
-
-## Local development (no accounts needed)
 ```
-docker compose -f docker-compose.dev.yml up -d   # Postgres
-printf 'DATABASE_URL=postgres://adreel:adreel@localhost:5432/adreel\nAPP_URL=http://localhost:3000\n' > .env.local
-npm run migrate
-npm run dev        # terminal 1
-npm run worker     # terminal 2
+Browser -> web (Next.js: UI + thin BFF proxy) -> api (Go) -> Postgres (Supabase)
+                                                  |             ^
+                                              River queue ----> worker (Go + ffmpeg) -> Higgsfield, S3/R2
 ```
-Without `NEXT_PUBLIC_SUPABASE_URL` the app uses a dev-only login (any email, password ignored, disabled when `NODE_ENV=production`), the mock video provider, and template copy. Set the real keys to switch each integration on.
+| Directory | What |
+|---|---|
+| `backend/` | Go services: `cmd/api` (HTTP API), `cmd/worker` (background jobs), `cmd/migrate`. OpenAPI spec in `backend/api/openapi.yaml`. |
+| `web/` | Next.js frontend. Holds the session cookie and proxies `/api/v1/*` to the API with the bearer token attached. No business logic. |
+| `docs/` | [Architecture](docs/architecture/README.md), [launch checklist](docs/ops/launch-checklist.md), [roadmap](docs/roadmap.md). |
+| `tools/` | Load test. |
+
+Key properties: credits are an append-only ledger reserved in the same transaction that enqueues the job (River); failed ads are refunded exactly once; scraping validates the destination IP at connect time (SSRF/DNS-rebinding safe); videos live in a private bucket behind short-lived signed URLs; Stripe and Higgsfield webhooks are signature-verified and idempotent.
+
+## Local development (no external accounts)
+Requires Go 1.24+ (the toolchain auto-downloads), Node 22, Docker.
+```
+cp .env.example .env                                  # defaults work for local dev
+docker compose -f docker-compose.dev.yml up -d        # Postgres
+set -a; . ./.env; set +a
+(cd backend && go run ./cmd/migrate)
+(cd backend && go run ./cmd/api)                      # terminal 1  :8080
+(cd backend && go run ./cmd/worker)                   # terminal 2  :9090 (needs ffmpeg for captions)
+(cd web && npm ci && npm run dev)                     # terminal 3  :3000
+```
+Without `SUPABASE_URL` the API accepts a dev-only login (any email, no password; disabled when `APP_ENV=production`), the mock video provider and template copy are used. Set the real keys to switch each integration on.
 
 ## Tests
-`npm test` (needs the dev Postgres; storage tests run when `S3_*` points at an S3-compatible server; the concurrency test also needs `npm run dev` running and is skipped otherwise).
+```
+cd backend && DATABASE_URL=postgres://adreel:adreel@localhost:5432/adreel go test -race ./...
+cd web && npm run lint && npm run build
+node tools/loadtest.mjs        # BASE=http://localhost:8080 USERS=25
+```
+Database tests are skipped when no `DATABASE_URL`/`TEST_DATABASE_URL` is set. After changing `backend/api/openapi.yaml` run `cd web && npm run gen:api`.
 
-## Docs
-- [Documentation index](docs/README.md)
-- [Architecture](docs/architecture/README.md)
-- [Launch checklist (go-live steps)](docs/ops/launch-checklist.md)
-- [Roadmap](docs/roadmap.md)
-
-## Docker
-`docker compose up --build` (reads `.env`; `NEXT_PUBLIC_SUPABASE_*` are baked in at build time). Scale workers with `docker compose up --scale worker=N`.
+## Deploy
+`docker compose up --build` builds `migrate`, `api`, `worker` and `web` images from `.env` (see `.env.example`). Run `migrate` as a release step before rolling out. Scale `api`, `worker` and `web` independently. Go-live steps: [docs/ops/launch-checklist.md](docs/ops/launch-checklist.md).

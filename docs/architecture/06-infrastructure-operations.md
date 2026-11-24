@@ -28,9 +28,12 @@ flowchart TB
   w1 --> obj[(R2/S3)]
   cf --> obj
 ```
-- `web`: Next.js `output: standalone`, port 3000, non-root, health check on `/`. Scale on CPU and request rate.
+- `web`: Next.js `output: standalone`, port 3000, non-root, health check `/api/health`. Scale on CPU and request rate.
+- `api`: static Go binary on distroless, port 8080, `/readyz` (database ping), `/metrics`. Scale on CPU/latency; `GOMAXPROCS` follows the container limit.
+- `worker`: Go + ffmpeg (alpine), port 9090 for probes and metrics. Scale on queue depth and ffmpeg CPU.
+- `migrate`: one-shot image run before each rollout.
 - `worker`: scale on queue depth and ffmpeg CPU. Graceful shutdown on SIGTERM (`boss.stop`).
-- Connections: use the Supabase pooler. pg-boss needs session-mode or direct connections for LISTEN/NOTIFY and advisory locks; keep `PG_POOL_MAX` small per instance and budget total connections = instances x pool.
+- Connections: use the Supabase pooler. River uses LISTEN/NOTIFY and migrations take an advisory lock, so use session-mode or direct connections (not transaction pooling) for `worker` and `migrate`; keep `PG_POOL_MAX` small per instance and budget total connections = instances x pool.
 
 ## 3. Build and release
 Pipeline [Planned]:

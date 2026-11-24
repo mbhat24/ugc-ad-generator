@@ -22,7 +22,7 @@ Boundaries: Internet to web; web/worker to Postgres; web/worker to third parties
 
 ## 3. Authentication and sessions
 - Supabase Auth: email/password with confirmation; [Planned] OAuth (Google), magic link, MFA for admins and paying users.
-- `src/proxy.ts` refreshes session cookies on each request; pages and APIs call `currentUser()` which validates with Supabase (not just decoding the cookie).
+- `web/src/proxy.ts` refreshes the Supabase session cookies on each request; the BFF attaches the access token and the Go API verifies it on every call (signature via JWKS or HS256, `exp` required, `aud=authenticated`).
 - Passwords are never handled by app code (v1 removed the earlier scrypt implementation).
 
 ## 4. Authorization

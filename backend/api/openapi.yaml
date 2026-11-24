@@ -1,0 +1,196 @@
+openapi: 3.1.0
+info:
+  title: AdReel API
+  version: 1.0.0
+  description: |
+    Generates UGC-style short-form video ads from a product URL.
+    Authenticated endpoints expect `Authorization: Bearer <Supabase access token>`.
+    Credits are reserved when a project is created and refunded automatically if an ad fails.
+servers:
+  - url: http://localhost:8080
+security:
+  - bearer: []
+paths:
+  /healthz:
+    get: { summary: Liveness probe, security: [], operationId: healthz, responses: { "200": { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/Ok" } } } } } }
+  /readyz:
+    get:
+      summary: Readiness probe (checks the database)
+      security: []
+      operationId: readyz
+      responses:
+        "200": { description: Ready, content: { application/json: { schema: { $ref: "#/components/schemas/Ok" } } } }
+        "503": { description: Not ready }
+  /metrics:
+    get: { summary: Prometheus metrics (optional bearer METRICS_TOKEN), security: [], operationId: metrics, responses: { "200": { description: Prometheus text format } } }
+  /v1/plans:
+    get:
+      summary: List plans
+      security: []
+      operationId: listPlans
+      responses:
+        "200": { description: Plans, content: { application/json: { schema: { type: array, items: { $ref: "#/components/schemas/Plan" } } } } }
+  /v1/dev/login:
+    post:
+      summary: Mint a development token (only when running without Supabase outside production)
+      security: []
+      operationId: devLogin
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [email], properties: { email: { type: string, format: email } } } } } }
+      responses:
+        "200": { description: Token, content: { application/json: { schema: { type: object, required: [token, id], properties: { token: { type: string }, id: { type: string, format: uuid } } } } } }
+        "404": { description: Dev auth is disabled }
+  /v1/me:
+    get:
+      summary: Current user
+      operationId: getMe
+      responses:
+        "200": { description: The user, content: { application/json: { schema: { $ref: "#/components/schemas/Me" } } } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+  /v1/projects:
+    get:
+      summary: List the user's projects (newest first, max 50)
+      operationId: listProjects
+      responses:
+        "200": { description: Projects, content: { application/json: { schema: { type: array, items: { $ref: "#/components/schemas/Project" } } } } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+    post:
+      summary: Create a project and start generating ads
+      description: Scrapes the product page, runs moderation, writes copy, reserves one credit per ad and enqueues generation atomically.
+      operationId: createProject
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [url]
+              properties:
+                url: { type: string, format: uri, maxLength: 2000 }
+                count: { type: integer, minimum: 1, maximum: 3, default: 1 }
+      responses:
+        "201": { description: Created, content: { application/json: { schema: { type: object, required: [id], properties: { id: { type: string, format: uuid } } } } } }
+        "400": { description: Invalid input or unreachable/blocked product URL, content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "402": { description: Not enough credits (code no_credits), content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+        "422": { description: Product category not allowed (code moderation), content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+        "429": { description: Rate or usage limit reached, content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+  /v1/projects/{id}:
+    get:
+      summary: Get a project with live ad status. Video URLs are short-lived signed links.
+      operationId: getProject
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses:
+        "200": { description: The project, content: { application/json: { schema: { $ref: "#/components/schemas/Project" } } } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { description: Not found, content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+  /v1/billing/checkout:
+    post:
+      summary: Start a Stripe Checkout session for a plan
+      operationId: createCheckout
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [plan], properties: { plan: { type: string, enum: [starter, growth, scale] } } } } } }
+      responses:
+        "200": { description: Checkout URL, content: { application/json: { schema: { $ref: "#/components/schemas/Url" } } } }
+        "400": { description: Unknown plan }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "501": { description: Billing not configured }
+  /v1/billing/portal:
+    post:
+      summary: Open the Stripe billing portal
+      operationId: createPortal
+      responses:
+        "200": { description: Portal URL, content: { application/json: { schema: { $ref: "#/components/schemas/Url" } } } }
+        "400": { description: No billing account yet }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "501": { description: Billing not configured }
+  /v1/account/export:
+    get:
+      summary: Download all of the user's data as JSON
+      operationId: exportAccount
+      responses:
+        "200": { description: Export, content: { application/json: { schema: { type: object } } } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+  /v1/account:
+    delete:
+      summary: Permanently delete the account, cancel subscriptions and remove stored videos
+      operationId: deleteAccount
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [confirm], properties: { confirm: { type: string, description: The account email } } } } } }
+      responses:
+        "200": { description: Deleted, content: { application/json: { schema: { $ref: "#/components/schemas/Ok" } } } }
+        "400": { description: Confirmation does not match }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+  /v1/webhooks/stripe:
+    post:
+      summary: Stripe webhook (signature verified, events deduplicated)
+      security: []
+      operationId: stripeWebhook
+      responses: { "200": { description: Accepted }, "400": { description: Bad signature }, "500": { description: Processing failed, Stripe will retry } }
+  /v1/webhooks/higgsfield:
+    post:
+      summary: Higgsfield webhook (Standard Webhooks signature). Only triggers a re-poll of the job.
+      security: []
+      operationId: higgsfieldWebhook
+      responses: { "200": { description: Accepted }, "400": { description: Bad signature } }
+components:
+  securitySchemes:
+    bearer: { type: http, scheme: bearer, bearerFormat: JWT }
+  responses:
+    Unauthorized: { description: Missing or invalid token, content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } } }
+  schemas:
+    Ok: { type: object, required: [ok], properties: { ok: { type: boolean } } }
+    Url: { type: object, required: [url], properties: { url: { type: string, format: uri } } }
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error: { type: string, description: Safe to show to the user }
+        code: { type: string, enum: [unauthenticated, bad_request, bad_product_url, no_credits, moderation, rate_limited, not_found, billing_disabled, bad_signature, not_configured, internal] }
+    Plan:
+      type: object
+      required: [id, name, price, videos, blurb]
+      properties:
+        id: { type: string, enum: [free, starter, growth, scale] }
+        name: { type: string }
+        price: { type: integer, description: USD per month }
+        videos: { type: integer, description: Credits granted per paid period }
+        blurb: { type: string }
+    Me:
+      type: object
+      required: [id, email, plan, balance, hasBilling]
+      properties:
+        id: { type: string, format: uuid }
+        email: { type: string, format: email }
+        plan: { type: string, enum: [free, starter, growth, scale] }
+        balance: { type: integer, description: Remaining video credits }
+        hasBilling: { type: boolean }
+        mock: { type: boolean, description: True when videos are placeholders (no video provider configured) }
+    Product:
+      type: object
+      required: [title, description, images]
+      properties:
+        title: { type: string }
+        description: { type: string }
+        price: { type: string }
+        image: { type: string, format: uri }
+        images: { type: array, items: { type: string, format: uri } }
+    Ad:
+      type: object
+      required: [id, hook, script, caption, hashtags, avatar, status]
+      properties:
+        id: { type: string, format: uuid }
+        hook: { type: string }
+        script: { type: string }
+        caption: { type: string }
+        hashtags: { type: array, items: { type: string } }
+        avatar: { type: string }
+        status: { type: string, enum: [pending, processing, done, failed] }
+        videoUrl: { type: string, format: uri, description: Present when done; signed and valid for one hour }
+        error: { type: string, description: Present when failed (the credit was refunded) }
+    Project:
+      type: object
+      required: [id, url, product, createdAt, ads]
+      properties:
+        id: { type: string, format: uuid }
+        url: { type: string }
+        product: { $ref: "#/components/schemas/Product" }
+        createdAt: { type: string, format: date-time }
+        ads: { type: array, items: { $ref: "#/components/schemas/Ad" } }

@@ -1,19 +1,29 @@
+# Production-like stack. Postgres and auth are external (Supabase); configure via .env (see .env.example).
 services:
-  web:
-    build:
-      context: .
-      target: web
-      args:
-        NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL}
-        NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY}
+  migrate:
+    build: { context: backend, target: migrate }
     env_file: .env
-    ports: ["3000:3000"]
+    restart: "no"
+  api:
+    build: { context: backend, target: api }
+    env_file: .env
+    depends_on: { migrate: { condition: service_completed_successfully } }
+    ports: ["8080:8080"]
     restart: unless-stopped
   worker:
-    build:
-      context: .
-      target: worker
+    build: { context: backend, target: worker }
     env_file: .env
+    depends_on: { migrate: { condition: service_completed_successfully } }
     restart: unless-stopped
-    deploy:
-      replicas: 1
+  web:
+    build:
+      context: web
+      target: web
+      args:
+        NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL:-}
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY:-}
+    env_file: .env
+    environment: { API_URL: "http://api:8080" }
+    depends_on: [api]
+    ports: ["3000:3000"]
+    restart: unless-stopped

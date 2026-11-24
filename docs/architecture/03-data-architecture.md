@@ -66,7 +66,7 @@ Indexes: `credit_ledger(user_id)`, unique partial `credit_ledger(reason, ref) WH
 | Operation | Guarantee |
 |---|---|
 | Create project + ads + debits | Single transaction (atomic) |
-| Enqueue jobs | After commit. If enqueue fails the ads stay `pending` and the reconciler (scheduled every minute, deduplicated with `singletonKey`) re-enqueues them [Implemented]. [Planned] true transactional outbox (pg-boss can share the transaction) |
+| Enqueue jobs | Inside the same transaction (River `InsertTx`), so debit, ads and jobs commit or roll back together [Implemented, covered by a test where the enqueue fails and the credit is untouched]. The per-minute reconciler additionally re-enqueues any active ad with no progress for 3 minutes (unique jobs prevent duplicates) |
 | Ad status transitions | Conditional updates, at-least-once processing, effectively exactly-once outcome |
 | Stripe sync | Eventually consistent, idempotent, re-derivable from Stripe |
 
@@ -79,7 +79,7 @@ Indexes: `credit_ledger(user_id)`, unique partial `credit_ledger(reason, ref) WH
 | Videos | Life of account + 30 days; free tier 30 days | Lifecycle rule on bucket [Planned] |
 | Projects/ads | Life of account | Cascade delete from profile |
 | Ledger | 7 years financial record | Anonymize user link on erasure, keep amounts |
-| Queue history | 7-14 days | pg-boss archive/delete settings |
+| Queue history | 7-14 days | River completed-job retention (default 24 h) |
 | Logs | 30-90 days | No secrets, no passwords |
 Account deletion [Implemented, `DELETE /api/account`, requires typing the account email]: cancels Stripe subscriptions, deletes objects under `videos/{user}/`, deletes the Supabase user (needs `SUPABASE_SERVICE_ROLE_KEY`), then deletes the profile (cascades projects/ads). The ledger FK was dropped in migration 002 so financial rows remain, keyed only by an opaque id. Each step is idempotent so a failed deletion can be retried. Export: `GET /api/account/export` [Implemented].
 
@@ -92,7 +92,7 @@ Account deletion [Implemented, `DELETE /api/account`, requires typing the accoun
 | pgboss | Poll requeues | Tune poll interval; move to dedicated DB/queue at scale (doc 07) |
 
 ## 8. Migrations
-Versioned SQL migrations live in `migrations/` and are applied in order by `npm run migrate` and at worker start, inside transactions under an advisory lock, recorded in `schema_migrations` with a checksum (editing an applied migration fails loudly) [Implemented]. Convention: expand/contract, never edit applied files. The web tier does not migrate.
+Versioned SQL migrations live in `backend/migrations/` (embedded in the binary) and are applied in order by the `migrate` command (a release step), inside transactions under an advisory lock, recorded in `schema_migrations` with a checksum (editing an applied migration fails loudly) [Implemented]. Convention: expand/contract, never edit applied files. River's own schema is migrated by the same command. API and worker never migrate.
 
 ## 9. Row Level Security
 Server code connects with a privileged connection and enforces ownership in queries. [Planned] enable RLS on all tables as defense in depth, and use a least-privilege DB role for the web tier distinct from the worker.

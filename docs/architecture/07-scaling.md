@@ -17,7 +17,7 @@ Principle: do not build for 100M users on day one. Build a design whose bottlene
 | Web CPU | High p95 under load | Add replicas; cache static/PPR; move heavy work to worker |
 | Postgres connections | Pool exhaustion | Pooler (pgbouncer/Supavisor), smaller pools, read replicas, separate DB for queue |
 | Postgres writes | Ledger/ads write contention | Partition by time, batch inserts, balances table, shard by `user_id` hash |
-| Queue (pg-boss) | Poll load, bloat, latency | Raise poll interval, dedicated queue DB, then SQS/Kafka/Temporal |
+| Queue (River) | Insert/fetch load, table bloat, latency | River uses `SKIP LOCKED` and LISTEN/NOTIFY; tune queues and workers, move the queue tables to a dedicated database, then SQS/Kafka/Temporal |
 | Workers | ffmpeg CPU | Horizontal scale, CPU-optimized nodes, GPU/hardware encode, separate caption service |
 | Provider | `queued` requests, `429 account_queue_full` | Higgsfield limits concurrent processing per account/model and queues the excess up to a multiple of that limit. Cap our submission concurrency below it, honor `Retry-After`, route to other providers, prioritize paid plans, backpressure to users, negotiate capacity (Higgsfield enterprise capacity docs) |
 | Storage/egress | Cost and latency | CDN, lifecycle tiers, expire free-tier videos, HLS |

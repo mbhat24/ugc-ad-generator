@@ -3,9 +3,11 @@ on:
   push:
     branches: [main, v1]
   pull_request:
+
 jobs:
-  test:
+  backend:
     runs-on: ubuntu-latest
+    defaults: { run: { working-directory: backend } }
     services:
       postgres:
         image: postgres:16-alpine
@@ -15,15 +17,35 @@ jobs:
           --health-cmd "pg_isready -U adreel" --health-interval 5s --health-timeout 5s --health-retries 10
     env:
       DATABASE_URL: postgres://adreel:adreel@localhost:5432/adreel
-      NEXT_PUBLIC_SUPABASE_URL: http://localhost.invalid
-      NEXT_PUBLIC_SUPABASE_ANON_KEY: ci
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with: { go-version-file: backend/go.mod, cache-dependency-path: backend/go.sum }
+      - run: test -z "$(gofmt -l .)"
+      - run: go vet ./...
+      - run: go test -race -count=1 ./...
+      - run: go build ./...
+      - uses: golang/govulncheck-action@v1
+        with: { work-dir: backend, go-package: ./... }
+
+  web:
+    runs-on: ubuntu-latest
+    defaults: { run: { working-directory: web } }
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
-        with: { node-version: 22, cache: npm }
+        with: { node-version: 22, cache: npm, cache-dependency-path: web/package-lock.json }
       - run: npm ci
+      - run: npm run gen:api && git diff --exit-code src/lib/api-types.ts
       - run: npm run lint
-      - run: npx tsc --noEmit
-      - run: npm run migrate
-      - run: npm test
       - run: npm run build
+
+  images:
+    runs-on: ubuntu-latest
+    needs: [backend, web]
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build --target api -t adreel-api backend
+      - run: docker build --target worker -t adreel-worker backend
+      - run: docker build --target migrate -t adreel-migrate backend
+      - run: docker build --target web -t adreel-web web

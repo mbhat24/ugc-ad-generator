@@ -23,60 +23,68 @@ flowchart LR
 ```mermaid
 flowchart TB
   subgraph Client
-    br[Browser: Next.js React UI]
+    br[Browser: React UI]
   end
   subgraph Edge
-    cdn[CDN for static + videos]
+    cdn[CDN / WAF]
   end
   subgraph Compute
-    web[web: Next.js standalone, stateless]
-    worker[worker: Node + ffmpeg + tsx]
+    web[web: Next.js, UI plus BFF proxy, stateless]
+    api[api: Go HTTP API, stateless]
+    worker[worker: Go + ffmpeg, River consumer]
+    mig[migrate: one-shot release job]
   end
   subgraph Data
-    pg[(Postgres: app tables + pgboss schema)]
-    obj[(Object storage)]
+    pg[(Postgres: app tables + River queue)]
+    obj[(Private object storage)]
   end
   br --> cdn --> web
-  br -->|video playback| cdn --> obj
-  web -->|SQL| pg
-  web -->|enqueue| pg
+  web -->|"/api/v1/* + bearer token"| api
+  br -->|signed video URL| obj
+  api -->|SQL, transactional enqueue| pg
   worker -->|dequeue, update| pg
   worker -->|start/poll| hf[Higgsfield API]
   worker -->|upload| obj
-  web -->|auth| supa[Supabase Auth]
-  web -->|checkout/portal| stripe[Stripe]
-  stripe -->|webhook| web
+  mig --> pg
+  web -->|auth cookies| supa[Supabase Auth]
+  api -->|verify JWT via JWKS| supa
+  api -->|checkout/portal| stripe[Stripe]
+  stripe -->|webhook| api
+  hf -->|webhook| api
 ```
 **Notes**
-- `web` holds no state; any instance can serve any request. Sessions are cookies validated against Supabase.
-- Postgres is both system of record and queue (pg-boss). This keeps v1 operationally small; see ADR-002 for the migration path.
-- Workers are independently scaled; a crashed worker's job is retried by the queue.
+- `web` holds the session cookie (httpOnly) and forwards `/api/v1/*` to `api` with an `Authorization: Bearer` header; it contains no business logic. A separate mobile app or API-key customers can call `api` directly using the OpenAPI contract.
+- `api` is stateless; any instance serves any request. It verifies Supabase JWTs (JWKS or HS256) on every call.
+- Postgres is both system of record and queue (River). Jobs are inserted in the same transaction as the credit debit (transactional outbox), so a paid ad can never exist without its job.
+- Workers scale independently; a crashed worker's job is retried by River and stale jobs are re-enqueued by the reconciler.
 
-## 3. C4 level 3: web component view
-| Component | Path | Depends on |
-|---|---|---|
-| Proxy (session refresh) | `src/proxy.ts` | Supabase SSR |
-| Auth/profile | `src/lib/auth.ts`, `src/lib/supabase.ts` | Supabase, db |
-| Project API | `src/app/api/projects` | auth, scrape, script, ratelimit, queue, db |
-| Billing API | `src/app/api/billing/*`, `src/app/api/stripe/webhook` | stripe lib, db |
-| Scraper | `src/lib/scrape.ts` | dns, net, fetch |
-| Copy generator | `src/lib/script.ts` | OpenAI (optional) |
-| Data access | `src/lib/db.ts` | pg |
-| Queue producer | `src/lib/queue.ts` | pg-boss |
+## 3. C4 level 3: component view (backend)
+| Package | Responsibility |
+|---|---|
+| `internal/api` | Routes, handlers, request validation, webhooks, account export/delete |
+| `internal/auth` | JWT verification (Supabase JWKS/HS256, dev tokens), profile bootstrap |
+| `internal/store` | pgx pool, transactions, migrations, all SQL |
+| `internal/jobs` | River workers: generation state machine, reconciler, error handler (refund on exhaustion) |
+| `internal/video` | Provider interface: Higgsfield and mock; retry/permanent error classes |
+| `internal/scrape` | Product extraction with dial-time IP validation |
+| `internal/moderation`, `internal/copywriter` | Category blocking, claim scrubbing, copy generation |
+| `internal/billing` | Stripe checkout, portal, webhook handling, credit grants |
+| `internal/storage`, `internal/captions` | S3 client with signed URLs; ffmpeg caption burn-in |
+| `internal/httpx`, `internal/logx`, `internal/config` | Middleware, metrics, structured logs and alerts, validated configuration |
 
-Worker components: queue consumer (`worker/index.ts`), job state machine (`src/lib/jobs.ts`), provider (`src/lib/video`), captions (`src/lib/captions.ts`), storage (`src/lib/storage.ts`).
+Frontend (`web/`): pages (`src/app`), BFF proxy (`src/app/api/v1/[...path]`), auth cookie routes (`src/app/api/auth/*`), session refresh (`src/proxy.ts`), typed client from the OpenAPI spec (`src/lib/api-types.ts`).
 
 ## 4. Sequence: generate ads
 ```mermaid
 sequenceDiagram
   actor U as User
-  participant W as web
+  participant W as api
   participant DB as Postgres
-  participant Q as pg-boss
+  participant Q as River queue
   participant K as worker
   participant H as Higgsfield
   participant S as S3/R2
-  U->>W: POST /api/projects {url,count}
+  U->>W: POST /v1/projects {url,count}
   W->>DB: balance, usage limits
   W->>W: scrape product (SSRF-safe), generate copy
   W->>DB: One transaction: lock profile row, recheck balance, insert project and ads, debit ledger per ad
@@ -91,7 +99,7 @@ sequenceDiagram
   K->>K: ffmpeg burn captions
   K->>S: upload videos/{user}/{ad}.mp4
   K->>DB: ad.status=done, video_url
-  U->>W: GET /api/projects/:id (poll 4s)
+  U->>W: GET /v1/projects/:id (poll 4s)
   W-->>U: status + video_url
 ```
 
@@ -99,10 +107,10 @@ sequenceDiagram
 ```mermaid
 sequenceDiagram
   actor U as User
-  participant W as web
+  participant W as api
   participant St as Stripe
   participant DB as Postgres
-  U->>W: POST /api/billing/checkout {plan}
+  U->>W: POST /v1/billing/checkout {plan}
   W->>St: create customer (once) + Checkout Session
   W-->>U: redirect URL
   U->>St: pay
@@ -131,7 +139,7 @@ Transitions are guarded by `WHERE status IN (...)` updates so duplicate job deli
 ## 7. Failure modes and handling
 | Failure | Effect | Mitigation |
 |---|---|---|
-| Worker crash mid job | Job expires and retries | pg-boss retry/backoff; steps idempotent |
+| Worker crash mid job | Job expires and retries | River retry with backoff, then refund via error handler; steps idempotent |
 | Duplicate job delivery | Double processing | Status-guarded updates; unique refund key |
 | Provider outage | Ads fail | Fail fast + refund; [Planned] failover provider, circuit breaker |
 | Storage outage | No captions/upload | Falls back to provider URL; [Planned] retry/re-host |
@@ -142,13 +150,17 @@ Transitions are guarded by `WHERE status IN (...)` updates so duplicate job deli
 | Queue enqueue fails after commit | Paid ad never starts | Ads stay `pending` (credit already reserved atomically); the per-minute reconciler re-enqueues any active ad not updated for 3 minutes [Implemented] |
 
 ## 8. API surface (v1)
+The contract is `backend/api/openapi.yaml` (TypeScript types for the frontend are generated from it and CI fails on drift).
 | Method | Path | Auth | Purpose |
 |---|---|---|---|
-| POST | /api/auth/signup, login, logout | public/session | Supabase wrappers |
-| POST | /api/projects | session | Create project and enqueue ads |
-| GET | /api/projects/:id | session, owner | Project with ads and status |
-| POST | /api/billing/checkout | session | Stripe Checkout URL |
-| POST | /api/billing/portal | session | Stripe portal URL |
-| POST | /api/stripe/webhook | Stripe signature | Plan and credit sync |
+| GET | /healthz, /readyz, /metrics | none (metrics optional token) | Probes and Prometheus |
+| GET | /v1/plans | none | Plan catalogue |
+| POST | /v1/dev/login | none, dev only | Dev token (404 in production) |
+| GET | /v1/me | bearer | User, plan, credit balance |
+| GET/POST | /v1/projects | bearer | List / create project and enqueue ads |
+| GET | /v1/projects/{id} | bearer, owner | Project with live ad status and signed video URLs |
+| POST | /v1/billing/checkout, /v1/billing/portal | bearer | Stripe URLs |
+| GET/DELETE | /v1/account/export, /v1/account | bearer | GDPR export / deletion |
+| POST | /v1/webhooks/stripe, /v1/webhooks/higgsfield | signature | Provider callbacks |
 
-[Planned] versioned public API with API keys, per-key rate limits and outbound webhooks for agencies.
+Errors are `{ "error": "<user-safe message>", "code": "<machine code>" }`. [Planned] API keys with per-key rate limits and outbound webhooks for agencies.

@@ -3,8 +3,8 @@
 Work top to bottom. Each step lists what to do and how to verify. Items marked (code) are already implemented; the rest need your accounts.
 
 ## 1. Accounts and keys
-- [ ] **Supabase project** (region near your users). Settings: Authentication > Providers > Email enabled, **Confirm email ON** (the app rejects unconfirmed users in production), configure custom SMTP (the default sender is rate limited), set Site URL and Redirect URLs to your `APP_URL`.
-- [ ] Copy `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY` (server only), and the **session pooler** connection string as `DATABASE_URL`.
+- [ ] **Supabase project** (region near your users). Settings: Authentication > Providers > Email enabled, **Confirm email ON** (required: see below), configure custom SMTP (the default sender is rate limited), set Site URL and Redirect URLs to your `APP_URL`.
+- [ ] Set `SUPABASE_URL` (the API verifies tokens against its JWKS), `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY` (API only), and the **session pooler** connection string as `DATABASE_URL`. **Confirm email must be ON**: the API trusts any valid Supabase access token, and with confirmation on, unconfirmed users never receive one. Enable Supabase CAPTCHA (hCaptcha/Turnstile) and review its per-IP auth rate limits, since signup throttling now lives there.
 - [ ] **Stripe**: create 3 recurring monthly prices (Starter, Growth, Scale), set `STRIPE_PRICE_*`; `STRIPE_SECRET_KEY`; webhook endpoint `https://<domain>/api/stripe/webhook` with events `customer.subscription.created|updated|deleted`, `invoice.paid`, `invoice.payment_failed`; set `STRIPE_WEBHOOK_SECRET`. Enable the customer portal (plan switching, cancellation). Consider Stripe Tax.
 - [ ] **R2/S3 bucket**, private (`S3_PRIVATE` unset = signed URLs, 1 hour expiry (code)). Create an API token limited to this bucket. Set `S3_BUCKET`, `S3_ENDPOINT`, `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`. Add a lifecycle rule to expire objects after your retention period.
 - [ ] **Higgsfield**: create credentials; in console.higgsfield.ai choose the model, copy its endpoint path to `HIGGSFIELD_MODEL`, and **match the request body in `src/lib/video/index.ts` to that model's schema**. Reveal the webhook signing secret (`whsec_...`) into `HIGGSFIELD_WEBHOOK_SECRET`. Ask Higgsfield for the concurrency limit you need.
@@ -12,14 +12,14 @@ Work top to bottom. Each step lists what to do and how to verify. Items marked (
 - [ ] Rotate/revoke any token that has ever been pasted into chat or committed.
 
 ## 2. Database
-- [ ] `DATABASE_URL=... npm run migrate` (applies `migrations/001-003`; RLS is enabled so the Supabase anon key cannot read tables (code)).
+- [ ] Run the `migrate` image (or `cd backend && go run ./cmd/migrate`) with `DATABASE_URL` set. It applies `backend/migrations/001-003` and River's schema; RLS is enabled so the Supabase anon key cannot read tables (code).
 - [ ] Verify in Supabase SQL editor: `select relname, relrowsecurity from pg_class where relname in ('profiles','ads','projects','credit_ledger');` all true.
 - [ ] Enable daily backups and point-in-time recovery; run one restore test.
 - [ ] Optional hardening: run `docs/ops/least-privilege.sql` (verified locally: the role can read/write app tables and enqueue, but cannot alter schema) and use that role in `DATABASE_URL` for `web`; keep the owner role for migrations and the worker. Read the Supabase note in the file about BYPASSRLS.
 
 ## 3. Deploy
-- [ ] Build images: `docker build --target web -t adreel-web --build-arg NEXT_PUBLIC_SUPABASE_URL=... --build-arg NEXT_PUBLIC_SUPABASE_ANON_KEY=... .` and `docker build --target worker -t adreel-worker .`
-- [ ] Run **web** (2+ replicas) and **worker** (2+ replicas) on Fly.io, Railway, Render or ECS. All env vars from `.env.example` go to both. `NODE_ENV=production` and `APP_URL=https://...` are mandatory (the app refuses to boot with missing or partial config (code)).
+- [ ] Build images: `docker build --target api|worker|migrate -t adreel-<name> backend` and `docker build --target web -t adreel-web --build-arg NEXT_PUBLIC_SUPABASE_URL=... --build-arg NEXT_PUBLIC_SUPABASE_ANON_KEY=... web`
+- [ ] Run **web** (2+ replicas), **api** (2+ replicas) and **worker** (2+ replicas) on Fly.io, Railway, Render or ECS. All env vars from `.env.example` go to both. `NODE_ENV=production` and `APP_URL=https://...` are mandatory (the app refuses to boot with missing or partial config (code)).
 - [ ] Health checks: web `GET /api/ready`; alert if it fails.
 - [ ] Put a CDN/WAF (Cloudflare) in front; set `TRUSTED_PROXY_HOPS` to the number of proxies so rate limits see real client IPs.
 - [ ] Custom domain + TLS; HSTS is sent in production (code).
@@ -44,5 +44,5 @@ Work top to bottom. Each step lists what to do and how to verify. Items marked (
 ## 6. Operations from day one
 - [ ] Error alerts (`ERROR_WEBHOOK_URL` or Sentry), uptime monitor on `/api/ready`, log shipping from containers (logs are JSON).
 - [ ] Daily check: failed-ad rate, queue age (`select now()-min(created_at) from pgboss.job where state='created'`), provider spend vs budget.
-- [ ] Spend guardrails: tune `MAX_PROJECTS_PER_HOUR`, `MAX_ADS_PER_DAY`, `SIGNUPS_PER_IP_HOUR`; keep the Higgsfield account spend limit set on their side.
+- [ ] Spend guardrails: tune `MAX_PROJECTS_PER_HOUR`, `MAX_ADS_PER_DAY`; keep the Higgsfield account spend limit set on their side.
 - [ ] Incident basics: how to pause generation (scale worker to 0, jobs wait in queue), how to refund (insert a `refund` ledger row with a unique ref).
